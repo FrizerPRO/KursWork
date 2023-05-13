@@ -1,4 +1,5 @@
-﻿using Google.Apis.Sheets.v4.Data;
+﻿using System.Reflection;
+using Google.Apis.Sheets.v4.Data;
 
 namespace SheetsController;
 
@@ -29,8 +30,10 @@ public class PlayZone
             $"{SheetsController.GetColumnName(2)}{rowToRenewFrom}:" +
             $"{SheetsController.GetColumnName(Capacity + 1)}" +
             $"{SheetsController.TotalRows}";
+        
         var valuesToUpdate = await SheetsController.GetValuesFromRange(range, DataBase.SpreadSheetId)
                              ?? new List<IList<object>>();
+        await SaveMidnightData();
         await Refresh();
         var turnedValues = TurnValues(valuesToUpdate, Capacity, rowToRenewFrom);
 
@@ -66,6 +69,45 @@ public class PlayZone
         }
     }
 
+    private async Task SaveMidnightData()
+    {
+        var rowToRenewFrom = (SheetsController.TotalRows + 1) / 2 + 1;
+
+        var range = Name + "!";
+        range +=
+            $"{SheetsController.GetColumnName(2)}{2}:" +
+            $"{SheetsController.GetColumnName(rowToRenewFrom - 1)}" +
+            $"{SheetsController.TotalRows}";
+        var valuesFromRange = await SheetsController.GetValuesFromRange(range, DataBase.SpreadSheetId)
+                             ?? new List<IList<object>>();
+        var valuesToUpdate = TurnValues(valuesFromRange, Capacity, rowToRenewFrom);
+        string res = "";
+        foreach (var values_row in valuesToUpdate)
+        {
+            foreach (var value in values_row)
+            {
+                res += value.ToString() + ";";
+            }
+
+            res += "\n";
+        } 
+        string pathBegin = Directory.GetParent(Assembly.GetEntryAssembly().Location) + "/DataBase/ZoneInfo/";
+        if (!Directory.Exists(pathBegin))
+        {
+            Directory.CreateDirectory(pathBegin);
+        }
+        
+        string zoneDirectory = pathBegin += Name + "/";
+        if (!Directory.Exists(zoneDirectory))
+        {
+            Directory.CreateDirectory(zoneDirectory);
+        }
+        DateTime currentDate = DateTime.Now;
+
+        // Create the CSV file name with the current date
+        string fileName = $"data_{currentDate.ToString("yyyyMMdd")}.csv";
+        await File.WriteAllTextAsync(zoneDirectory + fileName,res);
+    }
     private IList<IList<object>> TurnValues(IList<IList<object>> valuesToUpdate, int capacity, int rowToRenewFrom)
     {
         var res = new List<IList<object>>();
@@ -85,7 +127,6 @@ public class PlayZone
                 res[j][i] = valuesToUpdate[i][j];
                 Console.WriteLine(valuesToUpdate[i][j] + " i: " + i + " j: " + j);
             }
-
         return res;
     }
 
